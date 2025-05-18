@@ -1,6 +1,6 @@
 {
 	"author": "Dominic Tarr <dominic.tarr@gmail.com> (dominictarr.com)",
-	"name": "crypto-browserify",
+	"name": "crypto-browserify-browser",
 	"description": "implementation of crypto for the browser",
 	"version": "3.12.1",
 	"homepage": "https://github.com/browserify/crypto-browserify",
@@ -32,9 +32,7 @@
 		"hash-base": "~3.0.4",
 		"inherits": "^2.0.4",
 		"pbkdf2": "^3.1.2",
-		"public-encrypt": "^4.0.3",
-		"randombytes": "^2.1.0",
-		"randomfill": "^1.0.4"
+		"public-encrypt": "^4.0.3"
 	},
 	"devDependencies": {
 		"@ljharb/eslint-config": "^21.1.1",
