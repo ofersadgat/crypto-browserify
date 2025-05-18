@@ -1,7 +1,48 @@
 'use strict';
 
+
+// limit of Crypto.getRandomValues()
+// https://developer.mozilla.org/en-US/docs/Web/API/Crypto/getRandomValues
+const MAX_BYTES = 65536;
+
+// Node supports requesting up to this number of bytes
+// https://github.com/nodejs/node/blob/master/lib/internal/crypto/random.js#L48
+const MAX_UINT32 = 4294967295;
+
+const _global = typeof globalThis !== 'undefined' ? globalThis : global
+const crypto = _global.crypto || _global.msCrypto
+
+function randomBytes (size, cb) {
+  // phantomjs needs to throw
+  if (size > MAX_UINT32) throw new RangeError('requested too many random bytes')
+
+  const bytes = new Uint8Array(size);
+
+  if (size > 0) { // getRandomValues fails on IE if size == 0
+    if (size > MAX_BYTES) { // this is the max bytes crypto.getRandomValues
+      // can do at once see https://developer.mozilla.org/en-US/docs/Web/API/window.crypto.getRandomValues
+      for (let generated = 0; generated < size; generated += MAX_BYTES) {
+        // buffer.slice automatically checks if the end is past the end of
+        // the buffer so we don't have to here
+        crypto.getRandomValues(bytes.slice(generated, generated + MAX_BYTES))
+      }
+    } else {
+      crypto.getRandomValues(bytes)
+    }
+  }
+
+  if (typeof cb === 'function') {
+    return Promise.resolve().then(function () {
+      cb(null, bytes)
+    });
+  }
+
+  return bytes
+}
+
+
 // eslint-disable-next-line no-multi-assign
-exports.randomBytes = exports.rng = exports.pseudoRandomBytes = exports.prng = require('randombytes');
+exports.randomBytes = exports.rng = exports.pseudoRandomBytes = exports.prng = randomBytes;
 
 // eslint-disable-next-line no-multi-assign
 exports.createHash = exports.Hash = require('create-hash');
@@ -75,10 +116,90 @@ exports.privateDecrypt = publicEncrypt.privateDecrypt;
 //   };
 // });
 
-var rf = require('randomfill');
+var kBufferMaxLength = safeBuffer.kMaxLength;
+var kMaxUint32 = Math.pow(2, 32) - 1;
+function assertOffset (offset, length) {
+  if (typeof offset !== 'number' || offset !== offset) { // eslint-disable-line no-self-compare
+    throw new TypeError('offset must be a number');
+  }
 
-exports.randomFill = rf.randomFill;
-exports.randomFillSync = rf.randomFillSync;
+  if (offset > kMaxUint32 || offset < 0) {
+    throw new TypeError('offset must be a uint32');
+  }
+
+  if (offset > kBufferMaxLength || offset > length) {
+    throw new RangeError('offset out of range');
+  }
+}
+
+function assertSize (size, offset, length) {
+  if (typeof size !== 'number' || size !== size) { // eslint-disable-line no-self-compare
+    throw new TypeError('size must be a number');
+  }
+
+  if (size > kMaxUint32 || size < 0) {
+    throw new TypeError('size must be a uint32');
+  }
+
+  if (size + offset > length || size > kBufferMaxLength) {
+    throw new RangeError('buffer too small');
+  }
+}
+
+function randomFill (buf, offset, size, cb) {
+  if (!(buf instanceof global.Uint8Array)) {
+    throw new TypeError('"buf" argument must be a Buffer or Uint8Array');
+  }
+
+  if (typeof offset === 'function') {
+    cb = offset;
+    offset = 0;
+    size = buf.length;
+  } else if (typeof size === 'function') {
+    cb = size;
+    size = buf.length - offset;
+  } else if (typeof cb !== 'function') {
+    throw new TypeError('"cb" argument must be a function');
+  }
+  assertOffset(offset, buf.length);
+  assertSize(size, offset, buf.length);
+  return actualFill(buf, offset, size, cb);
+}
+
+function actualFill (buf, offset, size, cb) {
+  var ourBuf = buf.buffer;
+  var uint = new Uint8Array(ourBuf, offset, size);
+  crypto.getRandomValues(uint);
+  if (cb) {
+    Promise.resolve().then(function () {
+      cb(null, buf)
+    });
+    return;
+  }
+  return buf;
+}
+function randomFillSync (buf, offset, size) {
+  if (typeof offset === 'undefined') {
+    offset = 0;
+  }
+  if (!(buf instanceof global.Uint8Array)) {
+    throw new TypeError('"buf" argument must be a Buffer or Uint8Array');
+  }
+
+  assertOffset(offset, buf.length);
+
+  if (size === undefined) {
+    size = buf.length - offset;
+  }
+
+  assertSize(size, offset, buf.length);
+
+  return actualFill(buf, offset, size);
+}
+
+
+exports.randomFill = randomFill;
+exports.randomFillSync = randomFillSync;
 
 exports.createCredentials = function () {
 	throw new Error('sorry, createCredentials is not implemented yet\nwe accept pull requests\nhttps://github.com/browserify/crypto-browserify');
