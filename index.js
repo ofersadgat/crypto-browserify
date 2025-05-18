@@ -116,7 +116,7 @@ exports.privateDecrypt = publicEncrypt.privateDecrypt;
 //   };
 // });
 
-var kBufferMaxLength = safeBuffer.kMaxLength;
+var kBufferMaxLength = 0x7fffffff;
 var kMaxUint32 = Math.pow(2, 32) - 1;
 function assertOffset (offset, length) {
   if (typeof offset !== 'number' || offset !== offset) { // eslint-disable-line no-self-compare
